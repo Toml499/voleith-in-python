@@ -58,6 +58,7 @@ import numpy as np
 from voleith.relations.r1cs   import R1CSRelation
 from voleith.protocol.r1cs_prover   import R1CSProver
 from voleith.protocol.r1cs_verifier import R1CSVerifier
+from voleith.utils.circom import compile_and_witness
 
 
 # ── 0. Setup ─────────────────────────────────────────────────────────────────
@@ -188,36 +189,22 @@ print("\n" + "-" * 60)
 print("STEP 5 — Loading from a circom .r1cs file")
 print("-" * 60)
 print("""
-  To use a real Poseidon (or any) circom circuit:
-
-    1. Compile:
-         circom poseidon_preimage.circom --r1cs --wasm --sym
-
-    2. Generate witness (e.g. with snarkjs + the .wasm):
-         node generate_witness.js circuit.wasm input.json witness.wtns
-
-    3. Export witness to JSON:
-         snarkjs wtns export json witness.wtns witness.json
-
-    4. Load in Python:
-         from voleith.utils.r1cs_parser import parse_r1cs
-         from voleith.relations.r1cs    import R1CSRelation
-         import galois, json
-
-         r1cs_file = parse_r1cs("circuit.r1cs")
-         F         = galois.GF(r1cs_file.prime)   # e.g. BN254 scalar field
-         relation  = R1CSRelation.from_r1cs_file(r1cs_file)
-
-         with open("witness.json") as f:
-             w_raw = json.load(f)               # list of decimal strings
-         witness = [int(x) for x in w_raw]     # wire 0 is always 1
-
-         prover   = R1CSProver(relation=relation, field=F)
-         verifier = R1CSVerifier(relation=relation, field=F)
-         proof    = prover.prove(witness)
-         result   = verifier.verify(proof)
+  compile_and_witness("poseidon_preimage.circom", {"preimage": "42"})
+  compiles the circuit, generates the witness, and returns (r1cs_file, witness)
+  ready to pass straight into R1CSProver / R1CSVerifier.
 """)
 
+# Replace "poseidon_preimage.circom" and input_data with your actual circuit.
+# r1cs_file, witness = compile_and_witness(
+#     "poseidon_preimage.circom",
+#     {"preimage": "42"},
+# )
+# F        = galois.GF(r1cs_file.prime)
+# relation = R1CSRelation.from_r1cs_file(r1cs_file)
+# prover   = R1CSProver(relation=relation, field=F)
+# verifier = R1CSVerifier(relation=relation, field=F)
+# proof    = prover.prove(witness)
+# result   = verifier.verify(proof)
 
 print("=" * 60)
 print("Demo complete.")

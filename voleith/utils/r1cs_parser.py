@@ -125,29 +125,24 @@ def _parse(data: bytes) -> R1CSFile:
 
     nsections, offset = _u32(data, offset)
 
-    hdr = None
-    constraints = None
-
+    # First pass: collect raw bytes for each section type.
+    # The spec does not guarantee section ordering, and circom sometimes
+    # emits the constraints section (type 2) before the header (type 1).
+    raw: dict[int, bytes] = {}
     for _ in range(nsections):
         sec_type, offset = _u32(data, offset)
         sec_size, offset = _u64(data, offset)
-        sec_end = offset + sec_size
+        raw[sec_type] = data[offset : offset + sec_size]
+        offset += sec_size
 
-        if sec_type == 1:
-            hdr, offset = _parse_header(data, offset)
-        elif sec_type == 2:
-            if hdr is None:
-                raise ValueError("Constraints section encountered before header section")
-            constraints, offset = _parse_constraints(
-                data, offset, hdr["field_size"], hdr["n_constraints"]
-            )
-        else:
-            offset = sec_end  # skip unknown sections
-
-    if hdr is None:
+    if 1 not in raw:
         raise ValueError("No header section found in .r1cs file")
-    if constraints is None:
+    if 2 not in raw:
         raise ValueError("No constraints section found in .r1cs file")
+
+    # Second pass: parse in dependency order (header first, then constraints).
+    hdr, _ = _parse_header(raw[1], 0)
+    constraints, _ = _parse_constraints(raw[2], 0, hdr["field_size"], hdr["n_constraints"])
 
     return R1CSFile(
         prime=hdr["prime"],
