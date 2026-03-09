@@ -68,16 +68,16 @@ print("CHECK 2 — Tampered T is rejected")
 print("-" * 60)
 
 tampered = R1CSProof(
-    seed_commitment=proof.seed_commitment,
+    ggm_opening=proof.ggm_opening,
     delta=proof.delta,
     m=proof.m,
     chi=proof.chi,
-    T=F((int(proof.T) + 1) % r1cs_file.prime),
+    T_j=F((int(proof.T_j) + 1) % r1cs_file.prime),
     V=proof.V,
 )
 result2 = verifier.verify(tampered)
 print(f"  Result: {'ACCEPTED' if result2 else 'REJECTED ✗  (correct!)'}")
-assert not result2, "Tampered T was accepted — Quicksilver check is broken!"
+assert not result2, "Tampered T_j was accepted — Quicksilver check is broken!"
 
 
 # ── 3. Tampered m ─────────────────────────────────────────────────────────────
@@ -91,11 +91,11 @@ tampered_m = F(np.array(proof.m).tolist())
 tampered_m[2] = F((int(tampered_m[2]) + 1) % r1cs_file.prime)   # flip wire 2
 
 tampered3 = R1CSProof(
-    seed_commitment=proof.seed_commitment,
+    ggm_opening=proof.ggm_opening,
     delta=proof.delta,
     m=tampered_m,
     chi=proof.chi,
-    T=proof.T,
+    T_j=proof.T_j,
     V=proof.V,
 )
 result3 = verifier.verify(tampered3)

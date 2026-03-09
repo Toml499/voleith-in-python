@@ -115,14 +115,14 @@ print("-" * 60)
 prover = R1CSProver(relation=relation, field=F)
 proof  = prover.prove(witness)
 
-print(f"  seed_commitment : {proof.seed_commitment.hex()[:32]}...")
+print(f"  commitment      : {proof.ggm_opening.commitment.hex()[:32]}...  (GGM Merkle root)")
+print(f"  j* (party)      : {proof.ggm_opening.j_star}")
 print(f"  Δ (VOLE key)    : {int(proof.delta)}")
 print(f"  m (auth. wires) : {np.array(proof.m).tolist()}  (= w*Δ + k, hides w)")
 print(f"  χ (batch key)   : {int(proof.chi)}")
-print(f"  T (cross term)  : {int(proof.T)}  (= Σ χⁱ tᵢ)")
+print(f"  T̂_j (correction): {int(proof.T_j)}  (= T̂^{{j*}}·Δ, MAC-based)")
 print(f"  V (quad term)   : {int(proof.V)}  (= Σ χⁱ vᵢ)")
-print(f"\n  Proof size: 2 field elements (T, V) + authenticated wires (m)")
-print(f"  (In a full implementation m would also be replaced by a commitment.)")
+print(f"\n  Proof size: GGM opening (144 bytes) + T_j, V + authenticated wires (m)")
 
 
 # ── 2. Verify (honest proof) ──────────────────────────────────────────────────
@@ -136,7 +136,7 @@ result   = verifier.verify(proof)
 
 print(f"\n  Check 1 — Fiat-Shamir Δ: Δ = Hash(statement || comm)")
 print(f"  Check 2 — Fiat-Shamir χ: χ = Hash(statement || comm || m)")
-print(f"  Check 3 — Quicksilver:   Σ χⁱ*(MAᵢ*MBᵢ - MCᵢ*Δ) = T*Δ + V")
+print(f"  Check 3 — Quicksilver:   Σ χⁱ*checkᵢ + V = T̂_{{-j*}}·Δ + T̂_j")
 print(f"\n  Result: {'ACCEPTED ✓' if result else 'REJECTED ✗'}")
 assert result, "Honest proof was rejected — something is wrong!"
 
@@ -151,16 +151,16 @@ from voleith.protocol.r1cs_prover import R1CSProof
 import copy
 
 tampered = R1CSProof(
-    seed_commitment=proof.seed_commitment,
+    ggm_opening=proof.ggm_opening,
     delta=proof.delta,
     m=proof.m,
     chi=proof.chi,
-    T=F((int(proof.T) + 1) % 101),   # flip T by 1
+    T_j=F((int(proof.T_j) + 1) % 101),   # flip T_j by 1
     V=proof.V,
 )
 
 tampered_result = verifier.verify(tampered)
-print(f"  Tampered T: {int(tampered.T)}  (was {int(proof.T)})")
+print(f"  Tampered T_j: {int(tampered.T_j)}  (was {int(proof.T_j)})")
 print(f"  Result: {'ACCEPTED' if tampered_result else 'REJECTED ✗  (correct!)'}")
 assert not tampered_result
 

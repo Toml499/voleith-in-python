@@ -70,20 +70,24 @@ def eval_lc(lc: dict, w, field_cls) -> object:
 @dataclass
 class R1CSRelation:
     """
-    Public R1CS statement: the circuit structure (A, B, C matrices).
+    Public R1CS statement: the circuit structure (A, B, C matrices) plus
+    the concrete values of all public wires.
 
     Attributes
     ----------
-    n_wires     : total wire count; wire 0 is always the constant 1
-    n_pub_out   : public output wires (wires 1 .. n_pub_out)
-    n_pub_in    : public input wires
-    constraints : list of (A_i, B_i, C_i), each a dict {wire_idx: int_coeff}
+    n_wires       : total wire count; wire 0 is always the constant 1
+    n_pub_out     : public output wires (wires 1 .. n_pub_out)
+    n_pub_in      : public input wires (wires n_pub_out+1 .. n_pub_out+n_pub_in)
+    constraints   : list of (A_i, B_i, C_i), each a dict {wire_idx: int_coeff}
+    public_values : concrete integer values for wires 1 .. (n_pub_out + n_pub_in)
+                    in order.  Empty list means "not yet bound" (demos only).
     """
 
-    n_wires:     int
-    n_pub_out:   int
-    n_pub_in:    int
-    constraints: list = field(default_factory=list)
+    n_wires:       int
+    n_pub_out:     int
+    n_pub_in:      int
+    constraints:   list = field(default_factory=list)
+    public_values: list = field(default_factory=list)
 
     # ── witness helpers ───────────────────────────────────────────────────────
 
@@ -158,11 +162,18 @@ class R1CSRelation:
     # ── serialisation ─────────────────────────────────────────────────────────
 
     def encode(self) -> bytes:
-        """Deterministic encoding for use as input to Fiat-Shamir hashing."""
+        """
+        Deterministic encoding for use as input to Fiat-Shamir hashing.
+
+        Includes public_values so that the VOLE key Δ is bound to the
+        concrete public wire values (e.g. the Merkle root).  A prover
+        claiming a different root would produce a different Δ and fail.
+        """
         data = {
-            "n_wires":   self.n_wires,
-            "n_pub_out": self.n_pub_out,
-            "n_pub_in":  self.n_pub_in,
+            "n_wires":       self.n_wires,
+            "n_pub_out":     self.n_pub_out,
+            "n_pub_in":      self.n_pub_in,
+            "public_values": [int(v) for v in self.public_values],
             "constraints": [
                 (
                     {str(k): int(v) for k, v in A.items()},
@@ -177,17 +188,26 @@ class R1CSRelation:
     # ── factory ───────────────────────────────────────────────────────────────
 
     @classmethod
-    def from_r1cs_file(cls, r1cs_file) -> "R1CSRelation":
+    def from_r1cs_file(cls, r1cs_file, public_values: list | None = None) -> "R1CSRelation":
         """
         Build an R1CSRelation from a parsed R1CSFile (see r1cs_parser.py).
 
-        The field prime in the .r1cs file is IGNORED here — the caller is
-        responsible for passing the correct galois.GF(prime) to the prover
-        and verifier.  You can read r1cs_file.prime to construct that field.
+        Parameters
+        ----------
+        r1cs_file     : R1CSFile — from parse_r1cs()
+        public_values : list[int] | None
+            Concrete integer values for the public wires, in wire order
+            (wires 1 .. n_pub_out + n_pub_in).  Pass the slice of the
+            witness vector: witness[1 : 1 + n_pub_out + n_pub_in].
+            If None or empty, public-wire binding is disabled (demos only).
+
+        Note: the field prime in the .r1cs file is ignored here — use
+        r1cs_file.prime to construct galois.GF(prime) for the prover/verifier.
         """
         return cls(
             n_wires=r1cs_file.n_wires,
             n_pub_out=r1cs_file.n_pub_out,
             n_pub_in=r1cs_file.n_pub_in,
             constraints=r1cs_file.constraints,
+            public_values=list(public_values) if public_values else [],
         )

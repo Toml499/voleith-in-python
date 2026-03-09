@@ -51,10 +51,11 @@ print("-" * 60)
 prover = Prover(relation=relation, field=F)
 proof = prover.prove(witness)
 
-print(f"  seed_commitment : {proof.seed_commitment.hex()[:32]}...  (hides PRG seed)")
+print(f"  commitment      : {proof.ggm_opening.commitment.hex()[:32]}...  (GGM Merkle root)")
+print(f"  j* (party)      : {proof.ggm_opening.j_star}  (punctured party index)")
 print(f"  Δ (VOLE key)    : {int(proof.delta)}  (Fiat-Shamir challenge)")
 print(f"  m (auth. values): {np.array(proof.m).tolist()}  (= x*Δ + k, hides x)")
-print(f"  c (correction)  : {np.array(proof.correction).tolist()}  (= A @ k)")
+print(f"  correction_j    : {np.array(proof.correction_j).tolist()}  (= A @ k^{{j*}})")
 
 
 # ── 2. Verify (honest proof) ──────────────────────────────────────────────────
@@ -82,17 +83,17 @@ from voleith.protocol.prover import Proof
 import copy
 
 # Flip one bit in the correction vector (simulates a cheating prover)
-tampered_correction = F(np.array(proof.correction).tolist())
+tampered_correction = F(np.array(proof.correction_j).tolist())
 tampered_correction[0] = F((int(tampered_correction[0]) + 1) % 7)
 
 tampered_proof = Proof(
-    seed_commitment=proof.seed_commitment,
+    ggm_opening=proof.ggm_opening,
     delta=proof.delta,
     m=proof.m,
-    correction=tampered_correction,
+    correction_j=tampered_correction,
 )
 
-print(f"  Tampered correction: {np.array(tampered_proof.correction).tolist()}")
+print(f"  Tampered correction: {np.array(tampered_proof.correction_j).tolist()}")
 tampered_result = verifier.verify(tampered_proof)
 print(f"\n  Result: {'ACCEPTED' if tampered_result else 'REJECTED ✗  (correct!)'}")
 assert not tampered_result, "Tampered proof was accepted — something is wrong!"
